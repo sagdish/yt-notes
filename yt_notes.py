@@ -7,10 +7,11 @@ Every mechanical step lives here so no agent improvises it. The agent's judgment
 the file is saved (asked, never guessed), WHERE the section headings go and WHICH caption mistakes
 to fix (plan.json), and WHICH visuals earn a place (visuals.json).
 
-  setup  <folder> [--label "..."]     remember a folder transcripts are saved under (repeatable)
+  setup  <folder> [--label "..."]     remember a folder transcripts are saved under (repeatable).
+                                      With none, they go to exports/ inside this skill's folder
   setup  --show                       the saved settings
   setup  --style obsidian|plain       how visual boxes are written (default: obsidian)
-  setup  --formats md[,pdf][,html]    which copies every build writes (default: md)
+  setup  --formats md[,pdf][,html]    the copies a build writes when it isn't told (default: md,pdf)
   setup  --paper a4|letter            PDF paper size (default: a4)
   setup  --polish on|off              fix obvious caption mistakes, each one marked (default: on)
   setup  --whisper-model NAME         tiny | base | small | medium | large-v3-turbo (default: small)
@@ -19,9 +20,10 @@ to fix (plan.json), and WHICH visuals earn a place (visuals.json).
                                       captions (never the video) -> a work dir with the text.
                                       --lang in another language than the video's = a translation.
                                       --whisper = speech-to-text of the audio, for videos without captions
-  build  <workdir> <plan.json> <out.md> [--anywhere] [--pdf] [--html]
-                                      writes the file, verifies it word for word, deletes the work dir
-  visuals <file.md> <visuals.json> [--style obsidian|plain] [--lang xx] [--label "..."] [--pdf] [--html]
+  build  <workdir> <plan.json> <out.md> [--anywhere] [--md | --pdf | --html]
+                                      writes the file, verifies it word for word, deletes the work dir.
+                                      --md = Markdown only; --pdf / --html = also that copy
+  visuals <file.md> <visuals.json> [--style obsidian|plain] [--lang xx] [--label "..."] [--md|--pdf|--html]
                                       adds visual blocks to ANY markdown file; replaces the ones it
                                       added before; refuses unless every other byte is unchanged
   export <file.md> [--pdf] [--html] [--paper a4|letter]
@@ -36,14 +38,16 @@ to fix (plan.json), and WHICH visuals earn a place (visuals.json).
   doctor                              checks everything this tool needs
   uninstall [--yes]                   removes the downloaded tools and the settings (never your notes)
 
-Exit codes: 0 ok · 1 refused / check failed · 2 YouTube or yt-dlp problem · 3 no save folder set up ·
+Exit codes: 0 ok · 1 refused / check failed · 2 YouTube or yt-dlp problem ·
 4 a required tool is missing or could not be installed · 5 no captions in the video's language.
 """
 import glob, hashlib, html, json, os, platform, re, shutil, subprocess, sys, tempfile, time
 import urllib.request
 
-VERSION = "3.0.0"
+VERSION = "3.1.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
+EXPORTS = os.path.join(HERE, "exports")        # the save folder until the user sets up their own
+DEFAULT_FORMATS = ["md", "pdf"]
 
 
 def env(name):
@@ -432,12 +436,13 @@ def save_config(cfg):
 
 
 def roots():
-    """[{label, path}]: $YT_NOTES_ROOT if set, else the config file."""
+    """[{label, path}]: $YT_NOTES_ROOT if set, else the config file, else exports/ in this skill."""
     root = env("ROOT")
     if root:
         return [{"label": "notes", "path": os.path.abspath(os.path.expanduser(root))}]
     return [{"label": r.get("label") or "notes", "path": os.path.abspath(os.path.expanduser(r["path"]))}
-            for r in load_config().get("roots", []) if isinstance(r, dict) and r.get("path")]
+            for r in load_config().get("roots", []) if isinstance(r, dict) and r.get("path")] or \
+        [{"label": "exports", "path": EXPORTS, "default": True}]
 
 
 def setting(name, default):
@@ -449,8 +454,9 @@ def cmd_setup(args):
     cfg = load_config()
     if args == ["--show"]:
         rs = roots()
-        print("\n".join(f"save folder: {r['label']} -> {r['path']}" for r in rs) or "no save folder set up yet")
-        print(f"style: {cfg.get('style', 'obsidian')}\nformats: {','.join(cfg.get('formats', ['md']))}\n"
+        print("\n".join(f"save folder: {r['label']} -> {r['path']}" + (" (default)" if r.get("default") else "")
+                        for r in rs))
+        print(f"style: {cfg.get('style', 'obsidian')}\nformats: {','.join(cfg.get('formats', DEFAULT_FORMATS))}\n"
               f"paper: {cfg.get('paper', 'a4')}\npolish: {cfg.get('polish', 'on')}\n"
               f"whisper model: {cfg.get('whisper_model', 'small')}\nconfig: {CONFIG}")
         return
@@ -516,20 +522,18 @@ def blurb(folder):
 
 def cmd_where(_args):
     rs = roots()
-    if not rs:
-        print("NO SAVE FOLDER: ask the user which folder transcripts should live in, then run:\n"
-              f"  python3 {os.path.abspath(__file__)} setup '<folder>' --label '<what goes there>'")
-        sys.exit(3)
     for r in rs:
         print(f"\n{r['label']} -> {r['path']}/<topic>/")
+        if r.get("default"):
+            print("  (the default: no save folder of the user's own is set up)")
         if not os.path.isdir(r["path"]):
-            print("  (folder missing: is the disk mounted?)")
+            print("  (created on the first save)" if r.get("default") else "  (folder missing: is the disk mounted?)")
             continue
         for name in sorted(os.listdir(r["path"])):
             p = os.path.join(r["path"], name)
             if os.path.isdir(p) and not name.startswith((".", "_")) and name != "inbox":
                 print(f"  {name}/  ({blurb(p)})")
-    print(f"\ndefaults: formats {','.join(setting('formats', ['md']))} · style {setting('style', 'obsidian')} · "
+    print(f"\ndefaults: formats {','.join(setting('formats', DEFAULT_FORMATS))} · style {setting('style', 'obsidian')} · "
           f"polish {setting('polish', 'on')}")
 
 
@@ -1438,11 +1442,14 @@ def wrap_tags(paragraph):
 
 
 def formats_from(args):
-    """(set of extra formats, remaining args): --pdf / --html, else the saved default."""
+    """(set of extra formats, remaining args): --md (none), --pdf / --html, else the saved default."""
+    md, args = flag(args, "--md")
     pdf, args = flag(args, "--pdf")
     htm, args = flag(args, "--html")
     chosen = {f for f, on in (("pdf", pdf), ("html", htm)) if on}
-    return (chosen or set(setting("formats", ["md"])) - {"md"}), args
+    if md and chosen:
+        die("--md means Markdown only: leave it out to add a PDF or HTML copy")
+    return (set() if md else chosen or set(setting("formats", DEFAULT_FORMATS)) - {"md"}), args
 
 
 def render(meta, units, hs, fixes, labels, tags):
@@ -1503,7 +1510,7 @@ def cmd_build(args):
     blurb_flag, args = opt(args, "--blurb")
     formats, args = formats_from(args)
     if len(args) != 3:
-        die("usage: build <workdir> <plan.json> <out.md> [--anywhere] [--pdf] [--html]")
+        die("usage: build <workdir> <plan.json> <out.md> [--anywhere] [--md | --pdf | --html]")
     work, ppath, out = args[0], args[1], os.path.abspath(os.path.expanduser(args[2]))
     if not os.path.isfile(os.path.join(work, "meta.json")):
         die(f"{work} is not a fetch work dir (no meta.json): run fetch first; a built file's work dir is already removed")
@@ -1520,8 +1527,6 @@ def cmd_build(args):
     folder = os.path.dirname(out)
     if not anywhere:
         rs = roots()
-        if not rs:
-            die("no save folder set up: run setup '<folder>'", 3)
         if os.path.dirname(folder) not in [r["path"] for r in rs] or not FOLDER_RE.match(os.path.basename(folder)):
             die("the file must sit one topic folder deep under a save folder: " +
                 " or ".join(f"{r['path']}/<topic>/" for r in rs) + " (or pass --anywhere when the user named the path)")
@@ -1779,7 +1784,7 @@ def cmd_visuals(args):
     label, args = opt(args, "--label")
     formats, args = formats_from(args)
     if len(args) != 2:
-        die("usage: visuals <file.md> <visuals.json> [--style obsidian|plain] [--lang xx] [--label \"...\"] [--pdf] [--html]")
+        die("usage: visuals <file.md> <visuals.json> [--style obsidian|plain] [--lang xx] [--label \"...\"] [--md|--pdf|--html]")
     path = existing_md(args[0])
     original = read(path)
     try:
@@ -1952,7 +1957,7 @@ def cmd_export(args):
     htm, args = flag(args, "--html")
     if len(args) != 1:
         die("usage: export <file.md> [--pdf] [--html] [--paper a4|letter]")
-    formats = {f for f, on in (("pdf", pdf), ("html", htm)) if on} or set(setting("formats", ["md"])) - {"md"}
+    formats = {f for f, on in (("pdf", pdf), ("html", htm)) if on} or set(setting("formats", DEFAULT_FORMATS)) - {"md"}
     if not formats:
         die("say which copy to write: --pdf, --html, or both")
     path = existing_md(args[0])
@@ -2063,12 +2068,13 @@ def cmd_doctor(_args):
               f"{'' if shutil.which('ffmpeg') else '  NEEDS ffmpeg (brew install ffmpeg)'}")
     else:
         print(f"  whisper  faster-whisper installed by this tool in {WHISPER_HOME}")
-    rs = roots()
-    if not rs:
-        print("  folders  none yet: the first run asks where transcripts go")
-    for r in rs:
-        state = "ok" if os.path.isdir(r["path"]) and os.access(r["path"], os.W_OK) else "MISSING or not writable"
-        ok = ok and state == "ok"
+    for r in roots():
+        if r.get("default"):
+            where = r["path"] if os.path.isdir(r["path"]) else os.path.dirname(r["path"])
+            state = "ok (the default)" if os.access(where, os.W_OK) else "NOT WRITABLE (the default)"
+        else:
+            state = "ok" if os.path.isdir(r["path"]) and os.access(r["path"], os.W_OK) else "MISSING or not writable"
+        ok = ok and state.startswith("ok")
         print(f"  folder   {r['label']} -> {r['path']}  {state}")
     print(f"  settings {CONFIG}  (polish {setting('polish', 'on')} · whisper model {model})")
     size = folder_size(CACHE) if os.path.isdir(CACHE) else 0
@@ -2093,7 +2099,8 @@ def cmd_uninstall(args):
     for p in targets:
         shutil.rmtree(p, ignore_errors=True) if os.path.isdir(p) else os.remove(p)
     print("removed:\n" + "\n".join(f"  {p}" for p in targets) +
-          "\nTo remove the skill itself, delete its folder: " + HERE)
+          "\nTo remove the skill itself, delete its folder: " + HERE +
+          (f"\nYour notes in {EXPORTS} are inside it: move them out first." if os.path.isdir(EXPORTS) and os.listdir(EXPORTS) else ""))
 
 
 if __name__ == "__main__":

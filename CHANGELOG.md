@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.1.0 (2026-10-13)
+
+- **Works on the first run with no setup:** notes go to `exports/` inside the skill's folder until
+  you add a save folder of your own. Where to save is still asked every time.
+- **The format is asked every time:** Markdown, PDF or HTML, with PDF as the default. The Markdown
+  file is always written. `--md` means Markdown only; `setup --formats` changes the default.
+- Exit code 3 (no save folder) is gone: there is always one.
+
 ## 3.0.0 (2026-10-13)
 
 - **Renamed to yt-notes** (the command is `/yt-notes`). Settings and downloaded tools move over from

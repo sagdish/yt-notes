@@ -1,6 +1,6 @@
 ---
 name: yt-notes
-description: Save the complete transcript of a YouTube video as a Markdown study file in any language, every word checked against the captions, with section headings and timestamp links, plus optional study visuals (diagrams, tables, comparisons, charts), optional PDF or HTML copies, YouTube's translation into another language, obvious caption mistakes fixed and marked, and Whisper speech-to-text for videos without captions. Also adds visuals to, or exports, any existing Markdown file. Use when the user gives a YouTube link and asks for its transcript, subtitles, captions or "the text of this video", wants to save a video for study, wants it in another language, or asks to add visuals or diagrams to a transcript, article or notes (`/yt-notes [--visuals | --text-only] [--pdf] [--html] <url|file>`).
+description: Save the complete transcript of a YouTube video as a Markdown study file in any language, every word checked against the captions, with section headings and timestamp links, plus optional study visuals (diagrams, tables, comparisons, charts), optional PDF or HTML copies, YouTube's translation into another language, obvious caption mistakes fixed and marked, and Whisper speech-to-text for videos without captions. Also adds visuals to, or exports, any existing Markdown file. Use when the user gives a YouTube link and asks for its transcript, subtitles, captions or "the text of this video", wants to save a video for study, wants it in another language, or asks to add visuals or diagrams to a transcript, article or notes (`/yt-notes [--visuals | --text-only] [--md | --pdf | --html] <url|file>`).
 ---
 
 # YouTube video to Markdown notes
@@ -24,7 +24,7 @@ transcript's words except through marked fixes.
 | `--text-only <link>` | Checklist A with visuals: no. Don't ask the visuals question. |
 | a link and a language ("in English", "translate it to Spanish") | Checklist A, fetch with `--lang <code>`. |
 | `--visuals <file>`, or "add visuals to this file" | Checklist B only. No fetch, no save question. |
-| `--pdf` and/or `--html` with any of the above | Pass the same flags on (see step 4). Without them, the saved default applies. |
+| `--md`, `--pdf` and/or `--html` with any of the above | That is the format: pass the same flags on (see step 5). Don't ask the format question. |
 | "export this file as a PDF / HTML" | `python3 $S export '<file>' --pdf` (or `--html`). Then report the path. |
 | "stop fixing captions" / "fix captions again" | `python3 $S setup --polish off` (or `on`). |
 
@@ -60,8 +60,10 @@ transcript's words except through marked fixes.
   YouTube's captions are in the wrong language, run `discard`, and offer Whisper in the language the
   video is really spoken in, exactly as for exit 5.
 - [ ] **3. Ask, then stop.** Run `python3 $S where`.
-  - Exit 3 (no save folder yet): ask which folder their notes live in, run
-    `python3 $S setup '<folder>' --label '<what goes there>'`, then `where` again.
+  - `where` lists the save folders, their topic folders and the default formats. When the user has
+    set up no folder of their own, it lists the default: `exports/` inside this skill's folder
+    (created on the first save). A folder the user names instead: save there with `--anywhere`
+    (step 5); if they want it used from now on, `python3 $S setup '<folder>' --label '<what goes there>'`.
   - Send ONE message with up to four questions:
     1. **Where:** the topic folder and filename. Offer a default: the existing topic that fits, and
        `suggested_file` or a shorter kebab-case name (for a title in another script, a short
@@ -69,8 +71,9 @@ transcript's words except through marked fixes.
        that folder's README).
     2. **Visuals** (skip when `--visuals` or `--text-only` was given): "Add study visuals (diagrams
        and tables where they help), or text only?" Offer no default.
-    3. **Copies** (only when no `--pdf`/`--html` was given and `where` shows `formats md`):
-       "Markdown only, or also a PDF or HTML copy?" Default: Markdown only.
+    3. **Format** (skip when `--md`, `--pdf` or `--html` was given): "Markdown, PDF or HTML? The
+       Markdown file is always written; a PDF or HTML copy is made from it." Default: the
+       `formats` on `where`'s `defaults:` line (`md,pdf` = PDF, `md` = Markdown, `md,html` = HTML).
     4. **Language** (only when `captions_language` differs from the language the user writes in, and
        they didn't ask for one): "The video is in <language>. Keep it, or a translation into
        <their language>?" Say whether `other captions` has human-made subtitles in that language;
@@ -78,7 +81,8 @@ transcript's words except through marked fixes.
   - Wait. "ok" or "yes" accepts your defaults for 1, 3 and 4 but does **not** answer 2: if the
     visuals question is still open, ask it again in one line and wait.
   - A translation: `discard` the work dir and fetch again with `--lang <code>`.
-  - "Always make a PDF" (or similar) = `python3 $S setup --formats md,pdf` once, then carry on.
+  - "Always PDF" / "always Markdown" (or similar) = `python3 $S setup --formats md,pdf` (or `md`,
+    `md,html`) once, then carry on. The format question is still asked; this changes its default.
 - [ ] **4. Plan.** Write `<workdir>/plan.json`:
   ```json
   {"headings": [{"unit": 1, "level": 2, "title": "Why queries get slow"},
@@ -113,8 +117,9 @@ transcript's words except through marked fixes.
     language.
   - `blurb` only for a new topic folder. `tags` is optional: single words, no spaces.
 - [ ] **5. Build.** `python3 $S build <workdir> <workdir>/plan.json '<save folder>/<topic>/<file>.md'`
-  - Add `--pdf` / `--html` from step 3, **unless visuals are coming**: then give those flags to the
-    `visuals` run in Checklist B instead, so the copies include the visuals.
+  - Add the format from step 3: `--md` (Markdown only), or `--pdf` and/or `--html`. **When visuals
+    are coming**, build with `--md` and give the format flags to the `visuals` run in Checklist B
+    instead, so the copies include the visuals.
   - A path the user named outside the save folders: add `--anywhere`.
   - It writes the file (properties, title, source line, headings with timestamp links, each fix
     marked with a footnote), checks every word against the captions underneath the fixes and
@@ -179,8 +184,9 @@ decoration. Zero visuals is a valid, honest result.
   - A chart's numbers must be said in its section. Digits and English number words are found
     automatically; for numbers said in words of another language, add
     `"numbers": {"45": "сорок пять процентов"}` with the exact phrase from that section.
-- [ ] **7. Run** `python3 $S visuals '<file>' <visuals.json>` (add `--pdf` / `--html` when copies were asked
-  for; for a file that isn't a transcript, add `--lang <code>` of the file's language so the box
+- [ ] **7. Run** `python3 $S visuals '<file>' <visuals.json>` (add the format from Checklist A step 3:
+  `--md`, or `--pdf` and/or `--html`; for a file the user brought, `--md` unless they asked for a
+  copy; for a file that isn't a transcript, add `--lang <code>` of the file's language so the box
   label is in it). The first diagram installs the drawing engine once (needs Node.js 20+). It
   refuses a chart number its section doesn't say, a diagram that doesn't draw or doesn't fit, and
   anything that would change one byte of the file's own text. `REFUSED:` = nothing written; fix what

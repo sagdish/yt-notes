@@ -220,6 +220,7 @@ class Env(unittest.TestCase):
                         FAKE_VIDEO=os.path.join(self.tmp, "video.json"))
         for k in ("YT_TRANSCRIPT_CONFIG", "YT_TRANSCRIPT_ROOT"):
             self.env.pop(k, None)
+        write(self.env["YT_NOTES_CONFIG"], json.dumps({"formats": ["md"]}))   # PDFs: tests/engine_smoke.py
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -593,6 +594,36 @@ class Lifecycle(Env):
         r = run("where", env=env)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn(self.notes, r.stdout)
+
+    def test_a_fresh_install_saves_to_exports_in_the_skill_and_defaults_to_pdf(self):
+        os.remove(self.env["YT_NOTES_CONFIG"])
+        env = dict(self.env)
+        env.pop("YT_NOTES_ROOT")
+        r = run("where", env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(os.path.join(ROOT, "exports") + "/<topic>/", r.stdout)
+        self.assertIn("the default", r.stdout)
+        self.assertIn("formats md,pdf", r.stdout)
+        r = run("setup", "--show", env=env)
+        self.assertIn(os.path.join(ROOT, "exports") + " (default)", r.stdout)
+        self.assertIn("formats: md,pdf", r.stdout)
+        self.assertFalse(os.path.exists(self.env["YT_NOTES_CONFIG"]))
+        with mock.patch.dict(os.environ, {"YT_NOTES_ROOT": "", "YT_TRANSCRIPT_ROOT": ""}), \
+                mock.patch.object(yt, "CONFIG", self.env["YT_NOTES_CONFIG"]):
+            self.assertEqual(yt.roots(), [{"label": "exports", "path": yt.EXPORTS, "default": True}])
+            self.assertEqual(yt.formats_from([]), ({"pdf"}, []))
+        r = run("setup", self.notes, env=env)
+        self.assertNotIn("exports", run("where", env=env).stdout)
+
+    def test_md_means_markdown_only_even_with_a_pdf_default(self):
+        run("setup", "--formats", "md,pdf", env=self.env)
+        with mock.patch.object(yt, "CONFIG", self.env["YT_NOTES_CONFIG"]):
+            self.assertEqual(yt.formats_from(["--md", "x"]), (set(), ["x"]))
+            self.assertEqual(yt.formats_from(["--html"]), ({"html"}, []))
+            self.assertEqual(yt.formats_from([]), ({"pdf"}, []))
+        r = run("build", "w", "p.json", "o.md", "--md", "--pdf", env=self.env)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("--md means Markdown only", r.stderr)
 
 
 class Updates(unittest.TestCase):

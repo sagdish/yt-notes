@@ -4,3 +4,4 @@ __pycache__/
 *.yt-transcript-tmp
 .DS_Store
 node_modules/
+exports/

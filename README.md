@@ -47,8 +47,9 @@ Or as a personal skill, which gives the shorter `/yt-notes`:
 git clone https://github.com/sagdish/yt-notes ~/.claude/skills/yt-notes
 ```
 
-The first run asks which folder your notes live in and installs yt-dlp. After that, each run asks
-where to save the file and whether you want study visuals, then writes it.
+Each run asks where to save the file (by default in `exports/` inside the skill's folder), the
+format (Markdown, PDF or HTML; PDF by default) and whether you want study visuals, then writes it.
+The first run also installs yt-dlp.
 
 **Upgrading from yt-transcript:** the skill was renamed. Your settings and downloaded tools move
 over automatically on the first run. If you cloned it into `~/.claude/skills/yt-transcript`, rename
@@ -61,7 +62,7 @@ that folder to `yt-notes`.
 | `/yt-notes <link>` | Transcript. Claude asks whether to add study visuals. |
 | `/yt-notes --visuals <link>` | Transcript with study visuals. |
 | `/yt-notes --text-only <link>` | Transcript only, no visuals question. |
-| `/yt-notes --pdf <link>` | Also writes a PDF next to the Markdown file. `--html` writes an HTML copy. |
+| `/yt-notes --pdf <link>` | A PDF next to the Markdown file, without the format question. `--html` for an HTML copy, `--md` for Markdown only. |
 | `/yt-notes <link>` "in English" | The transcript in another language (see [Languages](#languages)). |
 | `/yt-notes --visuals <file.md>` | Adds study visuals to a Markdown file you already have. |
 | "Export this file as a PDF" | Writes a PDF (or HTML) of any Markdown file, diagrams rendered. |
@@ -221,14 +222,14 @@ Each of these is enforced by the script, not left to the model:
 ## Output formats and styles
 
 - **Markdown** is always written; it is the source for everything else.
-- **PDF and HTML** are written next to the Markdown file with the same name, when you pass `--pdf`
-  or `--html`, or always if you set a default. Exporting again replaces the earlier copy. HTML copies
-  are single, self-contained files.
+- **Each run asks the format:** Markdown, PDF or HTML, with PDF as the default. A PDF or HTML copy
+  is written next to the Markdown file with the same name. Exporting again replaces the earlier
+  copy. HTML copies are single, self-contained files.
 - **Visual style.** `obsidian` (default) writes visuals as Obsidian callouts. `plain` writes them as
   standard blockquotes that render correctly on GitHub and in most Markdown apps.
 
 ```bash
-python3 $S setup --formats md,pdf     # always write a PDF as well
+python3 $S setup --formats md        # make Markdown only the default answer (default: md,pdf)
 python3 $S setup --style plain        # visuals as plain blockquotes
 python3 $S setup --paper letter       # PDF paper size (default: a4)
 ```
@@ -248,8 +249,10 @@ Run `python3 ~/.claude/skills/yt-notes/yt_notes.py doctor` to check everything a
 
 ## Configuration
 
-The first run asks where your notes live and stores it in `~/.config/yt-notes/config.json`. You can
-keep several save folders, each with a label:
+Notes go to `exports/` inside the skill's folder until you add a save folder of your own; then
+yours are offered instead. Each run still asks where to save, and you can name any other folder
+then. Settings are stored in `~/.config/yt-notes/config.json`. You can keep several save folders,
+each with a label:
 
 ```bash
 python3 $S setup ~/notes/learning --label "study notes"
@@ -278,10 +281,10 @@ Claude runs these for you; they are listed for scripting and troubleshooting.
 | Command | What it does |
 |---|---|
 | `setup <folder> [--label …]` | Adds a save folder. Also `--show`, `--style`, `--formats`, `--paper`, `--polish`, `--whisper-model`. |
-| `where` | Lists the save folders and the topic folders inside them. |
+| `where` | Lists the save folders (or the default `exports/`), the topic folders inside them and the default formats. |
 | `fetch <link> [--lang xx] [--whisper] [--cookies-from-browser NAME]` | Downloads the captions (or, with `--whisper`, transcribes the audio) into a temporary work folder. |
-| `build <workdir> <plan.json> <out.md> [--pdf] [--html] [--anywhere]` | Writes and checks the transcript. |
-| `visuals <file.md> <visuals.json> [--style …] [--lang xx] [--label …] [--pdf] [--html]` | Adds or replaces study visuals in any Markdown file. |
+| `build <workdir> <plan.json> <out.md> [--md \| --pdf \| --html] [--anywhere]` | Writes and checks the transcript. `--md` = Markdown only; with no format flag, the saved default. |
+| `visuals <file.md> <visuals.json> [--style …] [--lang xx] [--label …] [--md \| --pdf \| --html]` | Adds or replaces study visuals in any Markdown file. |
 | `export <file.md> [--pdf] [--html] [--paper a4\|letter]` | Writes PDF or HTML copies with diagrams drawn. |
 | `strip <file.md> [--visuals \| --fixes]` | Removes the added visuals and caption fixes (both by default). |
 | `verify <file.md>` | Re-downloads the captions and checks the file word for word. |
@@ -291,9 +294,8 @@ Claude runs these for you; they are listed for scripting and troubleshooting.
 | `doctor` | Checks Python, yt-dlp, Node.js, the engine, the browser, Whisper and the save folders. |
 | `uninstall [--yes]` | Removes the downloaded tools and the settings. Never touches your notes. |
 
-Exit codes: `0` success, `1` refused or check failed, `2` YouTube or yt-dlp problem, `3` no save
-folder configured, `4` a required tool is missing or could not be installed, `5` no captions in the
-video's language.
+Exit codes: `0` success, `1` refused or check failed, `2` YouTube or yt-dlp problem, `4` a required
+tool is missing or could not be installed, `5` no captions in the video's language.
 
 ## Troubleshooting
 
