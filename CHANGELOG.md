@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.2.0 (2026-10-13)
+
+- **Notes are never saved inside the skill's folder.** A plugin update installs each version in a
+  new folder, so notes in 3.1's `exports/` were left behind. The first run now asks which folder
+  your notes go in (suggesting `~/Documents/yt-notes/exports`) and remembers it. Exit code 3 is
+  back for that first run. Notes already in a 3.1 `exports/` folder are pointed out so you can
+  move them.
+
 ## 3.1.0 (2026-10-13)
 
 - **Works on the first run with no setup:** notes go to `exports/` inside the skill's folder until

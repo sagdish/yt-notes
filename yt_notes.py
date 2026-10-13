@@ -7,8 +7,7 @@ Every mechanical step lives here so no agent improvises it. The agent's judgment
 the file is saved (asked, never guessed), WHERE the section headings go and WHICH caption mistakes
 to fix (plan.json), and WHICH visuals earn a place (visuals.json).
 
-  setup  <folder> [--label "..."]     remember a folder transcripts are saved under (repeatable).
-                                      With none, they go to exports/ inside this skill's folder
+  setup  <folder> [--label "..."]     remember a folder transcripts are saved under (repeatable)
   setup  --show                       the saved settings
   setup  --style obsidian|plain       how visual boxes are written (default: obsidian)
   setup  --formats md[,pdf][,html]    the copies a build writes when it isn't told (default: md,pdf)
@@ -38,15 +37,16 @@ to fix (plan.json), and WHICH visuals earn a place (visuals.json).
   doctor                              checks everything this tool needs
   uninstall [--yes]                   removes the downloaded tools and the settings (never your notes)
 
-Exit codes: 0 ok · 1 refused / check failed · 2 YouTube or yt-dlp problem ·
+Exit codes: 0 ok · 1 refused / check failed · 2 YouTube or yt-dlp problem · 3 no save folder set up ·
 4 a required tool is missing or could not be installed · 5 no captions in the video's language.
 """
 import glob, hashlib, html, json, os, platform, re, shutil, subprocess, sys, tempfile, time
 import urllib.request
 
-VERSION = "3.1.0"
+VERSION = "3.2.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
-EXPORTS = os.path.join(HERE, "exports")        # the save folder until the user sets up their own
+SUGGESTED_FOLDER = os.path.join(os.path.expanduser("~"), "Documents", "yt-notes", "exports")
+OLD_EXPORTS = os.path.join(HERE, "exports")    # 3.1 saved here; a plugin update leaves it behind
 DEFAULT_FORMATS = ["md", "pdf"]
 
 
@@ -436,13 +436,12 @@ def save_config(cfg):
 
 
 def roots():
-    """[{label, path}]: $YT_NOTES_ROOT if set, else the config file, else exports/ in this skill."""
+    """[{label, path}]: $YT_NOTES_ROOT if set, else the config file."""
     root = env("ROOT")
     if root:
         return [{"label": "notes", "path": os.path.abspath(os.path.expanduser(root))}]
     return [{"label": r.get("label") or "notes", "path": os.path.abspath(os.path.expanduser(r["path"]))}
-            for r in load_config().get("roots", []) if isinstance(r, dict) and r.get("path")] or \
-        [{"label": "exports", "path": EXPORTS, "default": True}]
+            for r in load_config().get("roots", []) if isinstance(r, dict) and r.get("path")]
 
 
 def setting(name, default):
@@ -454,8 +453,7 @@ def cmd_setup(args):
     cfg = load_config()
     if args == ["--show"]:
         rs = roots()
-        print("\n".join(f"save folder: {r['label']} -> {r['path']}" + (" (default)" if r.get("default") else "")
-                        for r in rs))
+        print("\n".join(f"save folder: {r['label']} -> {r['path']}" for r in rs) or "no save folder set up yet")
         print(f"style: {cfg.get('style', 'obsidian')}\nformats: {','.join(cfg.get('formats', DEFAULT_FORMATS))}\n"
               f"paper: {cfg.get('paper', 'a4')}\npolish: {cfg.get('polish', 'on')}\n"
               f"whisper model: {cfg.get('whisper_model', 'small')}\nconfig: {CONFIG}")
@@ -522,12 +520,18 @@ def blurb(folder):
 
 def cmd_where(_args):
     rs = roots()
+    if not rs:
+        print("NO SAVE FOLDER (first run): ask the user which folder their notes should go in, suggesting\n"
+              f"  {SUGGESTED_FOLDER}\nthen run:\n"
+              f"  python3 {os.path.abspath(__file__)} setup '<folder>' --label '<what goes there>'")
+        if os.path.isdir(OLD_EXPORTS) and os.listdir(OLD_EXPORTS):
+            print(f"notes saved by version 3.1 are in {OLD_EXPORTS}: tell the user, so they can move them")
+        print(f"defaults: formats {','.join(setting('formats', DEFAULT_FORMATS))}")
+        sys.exit(3)
     for r in rs:
         print(f"\n{r['label']} -> {r['path']}/<topic>/")
-        if r.get("default"):
-            print("  (the default: no save folder of the user's own is set up)")
         if not os.path.isdir(r["path"]):
-            print("  (created on the first save)" if r.get("default") else "  (folder missing: is the disk mounted?)")
+            print("  (folder missing: is the disk mounted?)")
             continue
         for name in sorted(os.listdir(r["path"])):
             p = os.path.join(r["path"], name)
@@ -1527,6 +1531,8 @@ def cmd_build(args):
     folder = os.path.dirname(out)
     if not anywhere:
         rs = roots()
+        if not rs:
+            die("no save folder set up: run setup '<folder>'", 3)
         if os.path.dirname(folder) not in [r["path"] for r in rs] or not FOLDER_RE.match(os.path.basename(folder)):
             die("the file must sit one topic folder deep under a save folder: " +
                 " or ".join(f"{r['path']}/<topic>/" for r in rs) + " (or pass --anywhere when the user named the path)")
@@ -2068,13 +2074,12 @@ def cmd_doctor(_args):
               f"{'' if shutil.which('ffmpeg') else '  NEEDS ffmpeg (brew install ffmpeg)'}")
     else:
         print(f"  whisper  faster-whisper installed by this tool in {WHISPER_HOME}")
-    for r in roots():
-        if r.get("default"):
-            where = r["path"] if os.path.isdir(r["path"]) else os.path.dirname(r["path"])
-            state = "ok (the default)" if os.access(where, os.W_OK) else "NOT WRITABLE (the default)"
-        else:
-            state = "ok" if os.path.isdir(r["path"]) and os.access(r["path"], os.W_OK) else "MISSING or not writable"
-        ok = ok and state.startswith("ok")
+    rs = roots()
+    if not rs:
+        print("  folders  none yet: the first run asks where notes go")
+    for r in rs:
+        state = "ok" if os.path.isdir(r["path"]) and os.access(r["path"], os.W_OK) else "MISSING or not writable"
+        ok = ok and state == "ok"
         print(f"  folder   {r['label']} -> {r['path']}  {state}")
     print(f"  settings {CONFIG}  (polish {setting('polish', 'on')} · whisper model {model})")
     size = folder_size(CACHE) if os.path.isdir(CACHE) else 0
@@ -2100,7 +2105,8 @@ def cmd_uninstall(args):
         shutil.rmtree(p, ignore_errors=True) if os.path.isdir(p) else os.remove(p)
     print("removed:\n" + "\n".join(f"  {p}" for p in targets) +
           "\nTo remove the skill itself, delete its folder: " + HERE +
-          (f"\nYour notes in {EXPORTS} are inside it: move them out first." if os.path.isdir(EXPORTS) and os.listdir(EXPORTS) else ""))
+          (f"\nNotes saved by version 3.1 are inside it, in {OLD_EXPORTS}: move them out first."
+           if os.path.isdir(OLD_EXPORTS) and os.listdir(OLD_EXPORTS) else ""))
 
 
 if __name__ == "__main__":

@@ -47,9 +47,9 @@ Or as a personal skill, which gives the shorter `/yt-notes`:
 git clone https://github.com/sagdish/yt-notes ~/.claude/skills/yt-notes
 ```
 
-Each run asks where to save the file (by default in `exports/` inside the skill's folder), the
-format (Markdown, PDF or HTML; PDF by default) and whether you want study visuals, then writes it.
-The first run also installs yt-dlp.
+The first run asks which folder your notes go in (it suggests `~/Documents/yt-notes/exports`),
+remembers it, and installs yt-dlp. Each run asks where in that folder to save the file, the format
+(Markdown, PDF or HTML; PDF by default) and whether you want study visuals, then writes it.
 
 **Upgrading from yt-transcript:** the skill was renamed. Your settings and downloaded tools move
 over automatically on the first run. If you cloned it into `~/.claude/skills/yt-transcript`, rename
@@ -249,10 +249,9 @@ Run `python3 ~/.claude/skills/yt-notes/yt_notes.py doctor` to check everything a
 
 ## Configuration
 
-Notes go to `exports/` inside the skill's folder until you add a save folder of your own; then
-yours are offered instead. Each run still asks where to save, and you can name any other folder
-then. Settings are stored in `~/.config/yt-notes/config.json`. You can keep several save folders,
-each with a label:
+The first run asks where your notes go and stores it in `~/.config/yt-notes/config.json`, outside
+the skill's folder, so updates never touch your notes. Each run still asks where to save, and you
+can name any other folder then. You can keep several save folders, each with a label:
 
 ```bash
 python3 $S setup ~/notes/learning --label "study notes"
@@ -281,7 +280,7 @@ Claude runs these for you; they are listed for scripting and troubleshooting.
 | Command | What it does |
 |---|---|
 | `setup <folder> [--label …]` | Adds a save folder. Also `--show`, `--style`, `--formats`, `--paper`, `--polish`, `--whisper-model`. |
-| `where` | Lists the save folders (or the default `exports/`), the topic folders inside them and the default formats. |
+| `where` | Lists the save folders, the topic folders inside them and the default formats. |
 | `fetch <link> [--lang xx] [--whisper] [--cookies-from-browser NAME]` | Downloads the captions (or, with `--whisper`, transcribes the audio) into a temporary work folder. |
 | `build <workdir> <plan.json> <out.md> [--md \| --pdf \| --html] [--anywhere]` | Writes and checks the transcript. `--md` = Markdown only; with no format flag, the saved default. |
 | `visuals <file.md> <visuals.json> [--style …] [--lang xx] [--label …] [--md \| --pdf \| --html]` | Adds or replaces study visuals in any Markdown file. |
@@ -294,8 +293,9 @@ Claude runs these for you; they are listed for scripting and troubleshooting.
 | `doctor` | Checks Python, yt-dlp, Node.js, the engine, the browser, Whisper and the save folders. |
 | `uninstall [--yes]` | Removes the downloaded tools and the settings. Never touches your notes. |
 
-Exit codes: `0` success, `1` refused or check failed, `2` YouTube or yt-dlp problem, `4` a required
-tool is missing or could not be installed, `5` no captions in the video's language.
+Exit codes: `0` success, `1` refused or check failed, `2` YouTube or yt-dlp problem, `3` no save
+folder set up yet (the first run), `4` a required tool is missing or could not be installed, `5` no
+captions in the video's language.
 
 ## Troubleshooting
 

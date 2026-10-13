@@ -60,12 +60,15 @@ transcript's words except through marked fixes.
   YouTube's captions are in the wrong language, run `discard`, and offer Whisper in the language the
   video is really spoken in, exactly as for exit 5.
 - [ ] **3. Ask, then stop.** Run `python3 $S where`.
-  - `where` lists the save folders, their topic folders and the default formats. When the user has
-    set up no folder of their own, it lists the default: `exports/` inside this skill's folder
-    (created on the first save). A folder the user names instead: save there with `--anywhere`
-    (step 5); if they want it used from now on, `python3 $S setup '<folder>' --label '<what goes there>'`.
+  - `where` lists the save folders, their topic folders and the default formats.
+  - **Exit 3 = first run** (no save folder yet): question 1 also asks which folder their notes go
+    in, suggesting the folder `where` printed. Once they answer, run
+    `python3 $S setup '<folder>' --label '<what goes there>'` before building; it is remembered.
+    Never save inside this skill's folder: a plugin update replaces it. If `where` printed notes
+    saved by version 3.1, tell the user where they are.
+  - A folder the user names that isn't a save folder: save there with `--anywhere` (step 5).
   - Send ONE message with up to four questions:
-    1. **Where:** the topic folder and filename. Offer a default: the existing topic that fits, and
+    1. **Where:** the topic folder and filename (on the first run, the notes folder too). Offer a default: the existing topic that fits, and
        `suggested_file` or a shorter kebab-case name (for a title in another script, a short
        English or transliterated name). A new topic folder needs a one-line description (it becomes
        that folder's README).

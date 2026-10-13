@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "yt-notes",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Complete, checked transcripts of YouTube videos as Markdown study notes, in any language: section headings with timestamp links, optional study visuals, PDF and HTML copies, marked caption fixes, and Whisper for videos without captions.",
   "author": {
     "name": "sagdish",

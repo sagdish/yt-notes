@@ -595,25 +595,27 @@ class Lifecycle(Env):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn(self.notes, r.stdout)
 
-    def test_a_fresh_install_saves_to_exports_in_the_skill_and_defaults_to_pdf(self):
+    def test_a_fresh_install_asks_for_a_folder_outside_the_skill_and_defaults_to_pdf(self):
         os.remove(self.env["YT_NOTES_CONFIG"])
         env = dict(self.env)
         env.pop("YT_NOTES_ROOT")
         r = run("where", env=env)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(os.path.join(ROOT, "exports") + "/<topic>/", r.stdout)
-        self.assertIn("the default", r.stdout)
+        self.assertEqual(r.returncode, 3, r.stderr)
+        self.assertIn("NO SAVE FOLDER", r.stdout)
+        self.assertIn(os.path.join("Documents", "yt-notes", "exports"), r.stdout)
         self.assertIn("formats md,pdf", r.stdout)
-        r = run("setup", "--show", env=env)
-        self.assertIn(os.path.join(ROOT, "exports") + " (default)", r.stdout)
-        self.assertIn("formats: md,pdf", r.stdout)
         self.assertFalse(os.path.exists(self.env["YT_NOTES_CONFIG"]))
         with mock.patch.dict(os.environ, {"YT_NOTES_ROOT": "", "YT_TRANSCRIPT_ROOT": ""}), \
                 mock.patch.object(yt, "CONFIG", self.env["YT_NOTES_CONFIG"]):
-            self.assertEqual(yt.roots(), [{"label": "exports", "path": yt.EXPORTS, "default": True}])
+            self.assertEqual(yt.roots(), [])
             self.assertEqual(yt.formats_from([]), ({"pdf"}, []))
-        r = run("setup", self.notes, env=env)
-        self.assertNotIn("exports", run("where", env=env).stdout)
+        r = run("build", "w", "p.json", os.path.join(ROOT, "exports", "t", "a.md"), env=env)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertFalse(os.path.exists(os.path.join(ROOT, "exports")))
+        run("setup", self.notes, "--label", "notes", env=env)
+        r = run("where", env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(self.notes + "/<topic>/", r.stdout)
 
     def test_md_means_markdown_only_even_with_a_pdf_default(self):
         run("setup", "--formats", "md,pdf", env=self.env)
