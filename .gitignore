@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
+*.yt-notes-tmp
 *.yt-transcript-tmp
 .DS_Store
 node_modules/

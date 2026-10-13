@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "yt-notes",
+  "version": "3.0.0",
+  "description": "Complete, checked transcripts of YouTube videos as Markdown study notes, in any language: section headings with timestamp links, optional study visuals, PDF and HTML copies, marked caption fixes, and Whisper for videos without captions.",
+  "author": {
+    "name": "sagdish",
+    "url": "https://github.com/sagdish"
+  },
+  "homepage": "https://github.com/sagdish/yt-notes",
+  "repository": "https://github.com/sagdish/yt-notes",
+  "license": "MIT",
+  "keywords": ["youtube", "transcript", "captions", "subtitles", "notes", "obsidian", "whisper", "mermaid"],
+  "skills": ["./"]
+}

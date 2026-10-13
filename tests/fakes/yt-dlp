@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""A stand-in for yt-dlp in the offline tests. The video it describes comes from $FAKE_VIDEO (a JSON
+file): {"info": {...yt-dlp -J output...}, "vtt": {"<track>": "<WEBVTT text>"}, "refuse": ["<track>"]}."""
+import json, os, sys
+
+args = sys.argv[1:]
+video = json.load(open(os.environ["FAKE_VIDEO"], encoding="utf-8"))
+if "-J" in args:
+    print(json.dumps(video["info"]))
+    sys.exit(0)
+out = args[args.index("-o") + 1]
+if "--sub-langs" in args:
+    track = args[args.index("--sub-langs") + 1]
+    if track in video.get("refuse", []):
+        print(f"ERROR: Unable to download video subtitles for '{track}': HTTP Error 429: Too Many Requests",
+              file=sys.stderr)
+        sys.exit(1)
+    with open(out.replace("%(ext)s", f"{track}.vtt"), "w", encoding="utf-8") as f:
+        f.write(video["vtt"][track])
+    sys.exit(0)
+if "-f" in args:                       # the audio, for speech-to-text
+    with open(out.replace("%(ext)s", "m4a"), "wb") as f:
+        f.write(b"fake audio")
+    sys.exit(0)
+sys.exit(f"fake yt-dlp: unexpected arguments {args}")

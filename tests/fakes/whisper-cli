@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+"""A stand-in for whisper.cpp's whisper-cli in the offline tests: writes the -of <base>.json it was asked for."""
+import json, sys
+
+args = sys.argv[1:]
+out = args[args.index("-of") + 1]
+lang = args[args.index("-l") + 1]
+segments = [{"offsets": {"from": 0, "to": 2000}, "text": " Every system has parts."},
+            {"offsets": {"from": 2500, "to": 4000}, "text": " The client asks the server."}]
+json.dump({"result": {"language": "en" if lang == "auto" else lang}, "transcription": segments},
+          open(out + ".json", "w", encoding="utf-8"))
